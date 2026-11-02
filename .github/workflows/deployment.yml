@@ -1,36 +1,84 @@
-# This is a basic workflow to help you get started with Actions
+name: Deploy Bicep infrastructure
 
-name: azure bicep deployment
-
-# Controls when the workflow will run
+# Cuándo se ejecuta el flujo: al hacer push o PR a main, o manualmente desde la pestaña Actions.
 on:
-  # Triggers the workflow on push or pull request events but only for the "main" branch
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
-
-  # Allows you to run this workflow manually from the Actions tab
+    branches: ["main"]
   workflow_dispatch:
 
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+# Permisos mínimos: id-token para login con OIDC y contents para leer el repo.
+permissions:
+  id-token: write
+  contents: read
+
+# Variables reutilizables en todo el flujo.
+env:
+  AZURE_RESOURCE_GROUP: bicep-test
+  AZURE_LOCATION: eastus2
+  TEMPLATE_FILE: env/main.bicep
+  PARAMETERS_FILE: env/main.parameters.test.json
+
 jobs:
-  # This workflow contains a single job called "build"
-  build:
-    # The type of runner that the job will run on
+  # Job 1: previsualiza los cambios sin aplicarlos (corre también en PRs).
+  validate:
+    name: Validate (what-if)
     runs-on: ubuntu-latest
-
-    # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v4
+      # Descarga el código del repo al runner.
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      # Runs a single command using the runners shell
-      - name: Run a one-line script
-        run: echo Hello, world!
+      # Inicia sesión en Azure usando OIDC (sin contraseñas de larga duración).
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      # Runs a set of commands using the runners shell
-      - name: Run a multi-line script
-        run: |
-          echo Add other actions to build,
-          echo test, and deploy your project.
+      # Muestra qué recursos se crearían, cambiarían o eliminarían, sin desplegar nada.
+      - name: Run what-if
+        uses: azure/cli@v2
+        with:
+          azcliversion: latest
+          inlineScript: |
+            az deployment group what-if \
+              --resource-group "$AZURE_RESOURCE_GROUP" \
+              --template-file "$TEMPLATE_FILE" \
+              --parameters "$PARAMETERS_FILE" \
+              --parameters sqlAdministratorLoginPassword="${{ secrets.SQL_ADMIN_PASSWORD }}"
+
+  # Job 2: despliega la infraestructura. Solo corre tras validar y solo en push a main.
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    needs: validate
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    environment: test
+    steps:
+      # Descarga el código del repo al runner.
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Inicia sesión en Azure usando OIDC.
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # Despliega main.bicep (y sus módulos) al grupo de recursos.
+      - name: Deploy Bicep template
+        uses: azure/cli@v2
+        with:
+          azcliversion: latest
+          inlineScript: |
+            az deployment group create \
+              --name "deploy-${{ github.run_number }}" \
+              --resource-group "$AZURE_RESOURCE_GROUP" \
+              --template-file "$TEMPLATE_FILE" \
+              --parameters "$PARAMETERS_FILE" \
+              --parameters sqlAdministratorLoginPassword="${{ secrets.SQL_ADMIN_PASSWORD }}"
