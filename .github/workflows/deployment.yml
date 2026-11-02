@@ -16,7 +16,7 @@ permissions:
 # Variables reutilizables en todo el flujo.
 env:
   AZURE_RESOURCE_GROUP: bicep-test
-  AZURE_LOCATION: eastus2
+  AZURE_LOCATION: westus2
   TEMPLATE_FILE: env/main.bicep
   PARAMETERS_FILE: env/main.parameters.test.json
 
