@@ -17,10 +17,10 @@ param storageBlobEndpoint string
 @description('FQDN del servidor lógico de SQL asociado.')
 param sqlServerFqdn string
 
-// Variables
-var appServicePlanSkuName = {
-  name: 'F1'
-  tier: 'Free'
+@description('SKU del plan de App Service.')
+param appServicePlanSku object = {
+  name: 'B1'
+  tier: 'Basic'
 }
 
 // Recursos
@@ -28,7 +28,7 @@ var appServicePlanSkuName = {
 resource appServicePlan 'Microsoft.Web/serverfarms@2024-04-01' = {
   name: appServicePlanName
   location: location
-  sku: appServicePlanSkuName
+  sku: appServicePlanSku
   kind: 'linux'
   properties: {
     reserved: true
