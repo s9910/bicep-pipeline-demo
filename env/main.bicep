@@ -35,8 +35,6 @@ param storageAccountName string = 'st${projectName}${environmentType}${uniqueSuf
 // El sufijo incluye sqlLocation para que el nombre del servidor cambie al cambiar de región.
 param sqlServerName string = 'sqls-${projectName}-${environmentType}-${uniqueSqlSuffix}'
 param sqlDatabaseName string = 'sqldb-${projectName}-${environmentType}-${uniqueSqlSuffix}'
-param appServicePlanName string = 'asp-${projectName}-windows-${environmentType}-${uniqueSuffix}'
-param appServiceAppName string = 'app-${projectName}-app-${environmentType}-${uniqueSuffix}'
 
 // Recursos (módulos)
 module storage 'modules/storageAccounts.bicep' = {
@@ -59,17 +57,6 @@ module sql 'modules/sqlDatabases.bicep' = {
   }
 }
 
-module app 'modules/appServices.bicep' = {
-  name: 'deploy-appservice'
-  params: {
-    location: location
-    appServicePlanName: appServicePlanName
-    appServiceAppName: appServiceAppName
-    storageBlobEndpoint: storage.outputs.blobEndpoint
-    sqlServerFqdn: sql.outputs.sqlServerFqdn
-  }
-}
-
 // Salidas
 @description('Id de la cuenta de almacenamiento.')
 output storageAccountId string = storage.outputs.storageAccountId
@@ -79,9 +66,3 @@ output sqlServerFqdn string = sql.outputs.sqlServerFqdn
 
 @description('Nombre de la base de datos.')
 output sqlDatabaseName string = sql.outputs.sqlDatabaseName
-
-@description('Nombre de la aplicación web.')
-output appServiceAppName string = app.outputs.appServiceAppName
-
-@description('Host name por defecto de la aplicación web.')
-output appServiceAppHostName string = app.outputs.appServiceAppHostName
